@@ -1,14 +1,12 @@
 package app.domain;
 
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-import java.util.List;
-import java.util.ArrayList;
 
 public class GymService {
-    private Map<String, Member> members = new HashMap<>();
-    private Map<String, WorkoutClass> classes = new HashMap<>();
+    private final Map<String, Member> members = new HashMap<>();
+    private final Map<String, WorkoutClass> classes = new HashMap<>();
 
     public Member createMember(String name, String type) {
         requireNonBlank(name, "name");
@@ -30,10 +28,11 @@ public class GymService {
     }
 
     public Member getMember(String memberId) {
-        if (!members.containsKey(memberId)) {
-            throw new NotFoundError("Member '" + memberId + "' not Found");
+        Member member = members.get(memberId);
+        if (member == null) {
+            throw new NotFoundError("Member '" + memberId + "' not found");
         }
-        return members.get(memberId);
+        return member;
     }
 
     public WorkoutClass createClass(String name, int maxCapacity) {
@@ -47,36 +46,41 @@ public class GymService {
         return workoutClass;
     }
 
-    public WorkoutClass getClass(String classId) {
-        if (!classes.containsKey(classId)) {
-            throw new NotFoundError("Class '" + classId + "' not Found");
+    public WorkoutClass getWorkoutClass(String classId) {
+        WorkoutClass workoutClass = classes.get(classId);
+        if (workoutClass == null) {
+            throw new NotFoundError("Class '" + classId + "' not found");
         }
-        return classes.get(classId);
+        return workoutClass;
     }
 
     public WorkoutClass bookClass(String memberId, String classId) {
         Member member = getMember(memberId);
-        WorkoutClass class_ = getClass(classId);
-        if (class_.getEnrolledMembers().size() >= class_.getMaxCapacity()) {
-            throw new RuleViolationError("Class is full");
-        }
-        if (class_.getEnrolledMembers().contains(memberId)) {
-            throw new RuleViolationError("Member already booked this class");
-        }
-        int currentBookings = 0;
-        for (WorkoutClass c : classes.values()) {
-            if (c.getEnrolledMembers().contains(memberId)) {
-                currentBookings++;
-            }
-        }
+        WorkoutClass workoutClass = getWorkoutClass(classId);
 
-        if (currentBookings >= member.getMaxBookings()) {
+        // Member-level rule: it needs every class, so it stays in the service.
+        // Re-booking a class the member is already in is left for enroll() to report.
+        if (!workoutClass.isEnrolled(memberId)
+                && countBookings(memberId) >= member.getMaxBookings()) {
             throw new RuleViolationError("Member has reached the maximum number of bookings");
         }
-        class_.getEnrolledMembers().add(memberId);
-        return class_;
+
+        // Class-level rules (duplicate, full) are enforced by the class itself.
+        workoutClass.enroll(memberId);
+        return workoutClass;
     }
 
+    private int countBookings(String memberId) {
+        int count = 0;
+        for (WorkoutClass c : classes.values()) {
+            if (c.isEnrolled(memberId)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // Rejects null, empty, and whitespace-only strings.
     private static void requireNonBlank(String value, String field) {
         if (value == null || value.isBlank()) {
             throw new ValidationError("Field '" + field + "' must not be blank");
