@@ -21,7 +21,7 @@ public class MemberHandler implements HttpHandler {
                 //read json body
                 Map<String, String> body = mapper.readValue(exchange.getRequestBody(), Map.class);
 
-                Member newMember = Main.gymService.createMember(body.get("name"), body.get("type"));
+                var newMember = Main.gymService.createMember(body.get("name"), body.get("type"));
                 sendJson(exchange, 201,newMember); 
             }
             else {

@@ -2,61 +2,53 @@ package app.domain;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 public class GymService {
     private final Map<String, Member> members = new HashMap<>();
     private final Map<String, WorkoutClass> classes = new HashMap<>();
+    // Sequential ids: unique by construction (a random 4-character id can collide).
+    private long memberCounter = 0;
+    private long classCounter = 0;
 
-    public Member createMember(String name, String type) {
+    public synchronized MemberView createMember(String name, String type) {
         requireNonBlank(name, "name");
         requireNonBlank(type, "type");
 
-        String id = "m-" + UUID.randomUUID().toString().substring(0, 4);
-        Member member;
-
-        if (type.equalsIgnoreCase("BASIC")) {
-            member = new BasicMember(id, name);
-        } else if (type.equalsIgnoreCase("PREMIUM")) {
-            member = new PremiumMember(id, name);
-        } else {
+        boolean basic = type.equalsIgnoreCase("BASIC");
+        boolean premium = type.equalsIgnoreCase("PREMIUM");
+        if (!basic && !premium) {
             throw new ValidationError("Field 'type' must be 'BASIC' or 'PREMIUM'");
         }
 
+        String id = "m-" + (++memberCounter);
+        Member member = basic ? new BasicMember(id, name) : new PremiumMember(id, name);
         members.put(id, member);
-        return member;
+        return toView(member);
     }
 
-    public Member getMember(String memberId) {
-        Member member = members.get(memberId);
-        if (member == null) {
-            throw new NotFoundError("Member '" + memberId + "' not found");
-        }
-        return member;
+    public synchronized MemberView getMember(String memberId) {
+        return toView(findMember(memberId));
     }
 
-    public WorkoutClass createClass(String name, int maxCapacity) {
+    public synchronized ClassView createClass(String name, int maxCapacity) {
         requireNonBlank(name, "name");
         if (maxCapacity <= 0) {
             throw new ValidationError("Field 'maxCapacity' must be greater than 0");
         }
-        String id = "c-" + UUID.randomUUID().toString().substring(0, 4);
+
+        String id = "c-" + (++classCounter);
         WorkoutClass workoutClass = new WorkoutClass(id, name, maxCapacity);
         classes.put(id, workoutClass);
-        return workoutClass;
+        return toView(workoutClass);
     }
 
-    public WorkoutClass getWorkoutClass(String classId) {
-        WorkoutClass workoutClass = classes.get(classId);
-        if (workoutClass == null) {
-            throw new NotFoundError("Class '" + classId + "' not found");
-        }
-        return workoutClass;
+    public synchronized ClassView getWorkoutClass(String classId) {
+        return toView(findClass(classId));
     }
 
-    public WorkoutClass bookClass(String memberId, String classId) {
-        Member member = getMember(memberId);
-        WorkoutClass workoutClass = getWorkoutClass(classId);
+    public synchronized ClassView bookClass(String memberId, String classId) {
+        Member member = findMember(memberId);
+        WorkoutClass workoutClass = findClass(classId);
 
         // Member-level rule: it needs every class, so it stays in the service.
         // Re-booking a class the member is already in is left for enroll() to report.
@@ -67,6 +59,24 @@ public class GymService {
 
         // Class-level rules (duplicate, full) are enforced by the class itself.
         workoutClass.enroll(memberId);
+        return toView(workoutClass);
+    }
+
+    // ---- private helpers: they return live objects and are only called while the lock is held ----
+
+    private Member findMember(String memberId) {
+        Member member = members.get(memberId);
+        if (member == null) {
+            throw new NotFoundError("Member '" + memberId + "' not found");
+        }
+        return member;
+    }
+
+    private WorkoutClass findClass(String classId) {
+        WorkoutClass workoutClass = classes.get(classId);
+        if (workoutClass == null) {
+            throw new NotFoundError("Class '" + classId + "' not found");
+        }
         return workoutClass;
     }
 
@@ -78,6 +88,14 @@ public class GymService {
             }
         }
         return count;
+    }
+
+    private static MemberView toView(Member m) {
+        return new MemberView(m.getId(), m.getName(), m.getType(), m.getMaxBookings());
+    }
+
+    private static ClassView toView(WorkoutClass c) {
+        return new ClassView(c.getId(), c.getName(), c.getMaxCapacity(), c.getEnrolledMembers());
     }
 
     // Rejects null, empty, and whitespace-only strings.

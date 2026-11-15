@@ -22,7 +22,7 @@ public class ClassHandler implements HttpHandler {
                 //read json body
                 Map<String, Object> body = mapper.readValue(exchange.getRequestBody(), Map.class);
 
-                WorkoutClass newClass = Main.gymService.createClass((String) body.get("name"), (int) body.get("maxCapacity"));
+                var newClass = Main.gymService.createClass((String) body.get("name"), (int) body.get("maxCapacity"));
                 sendJson(exchange, 201,newClass); 
             }
             else {
