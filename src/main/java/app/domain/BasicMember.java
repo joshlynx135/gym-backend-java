@@ -5,8 +5,13 @@ public class BasicMember extends Member {
         super(id, name);
     }
 
-    @Override 
+    @Override
     public int getMaxBookings() {
         return 1;
+    }
+
+    @Override
+    public String getType() {
+        return "BASIC";
     }
 }

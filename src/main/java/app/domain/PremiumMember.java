@@ -1,6 +1,6 @@
 package app.domain;
 
-public class PremiumMember extends Member{
+public class PremiumMember extends Member {
     public PremiumMember(String id, String name) {
         super(id, name);
     }
@@ -8,5 +8,10 @@ public class PremiumMember extends Member{
     @Override
     public int getMaxBookings() {
         return 3;
+    }
+
+    @Override
+    public String getType() {
+        return "PREMIUM";
     }
 }
